@@ -54,6 +54,11 @@ if [ "$CURRENT_BRANCH" != "$REQUIRED_BRANCH" ]; then
 fi
 
 # Check for uncommitted changes
+# Refresh the index first so stale stat info (e.g. mtimes changed by a
+# checkout/build/install while content is identical) doesn't cause a false
+# positive. Without this, `git diff-index` can report changes even when
+# `git status` shows a clean tree.
+git update-index -q --refresh
 if ! git diff-index --quiet HEAD --; then
     error "Working tree has uncommitted changes. Please commit or stash them first."
 fi
