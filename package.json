@@ -1,6 +1,6 @@
 {
   "name": "@cbuff/ai",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Type-safe LLM wrapper with provider/model registry and optional cost tracking",
   "keywords": [
     "ai",
