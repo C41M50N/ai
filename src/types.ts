@@ -9,9 +9,7 @@ import type { generateText, InferGenerateOutput, LanguageModel, Output } from "a
  * This is the return type of provider factories like `createOpenAI()`.
  * @template TModelId - Union of model IDs supported by the provider
  */
-export type LanguageModelProvider<TModelId extends string = string> = (
-  modelId: TModelId
-) => LanguageModel;
+export type LanguageModelProvider<TModelId extends string = string> = (modelId: TModelId) => LanguageModel;
 
 /**
  * A factory function that creates a provider instance.
@@ -27,9 +25,7 @@ export type ProviderFactory<TModelId extends string = string> = () =>
 // ############################################################################
 
 type ProviderModelId<TProviderFactory extends ProviderFactory> =
-  Awaited<ReturnType<TProviderFactory>> extends LanguageModelProvider<infer TModelId>
-    ? TModelId
-    : string;
+  Awaited<ReturnType<TProviderFactory>> extends LanguageModelProvider<infer TModelId> ? TModelId : string;
 
 /**
  * Configuration for a single model.
@@ -60,7 +56,7 @@ export type ModelEntry<TProviders extends Record<string, ProviderFactory>> = {
  */
 export type AIConfig<
   TProviders extends Record<string, ProviderFactory>,
-  TModels extends Record<string, ModelEntry<TProviders>>
+  TModels extends Record<string, ModelEntry<TProviders>>,
 > = {
   providers: TProviders;
   models: TModels;
@@ -70,13 +66,7 @@ export type AIConfig<
 // Reasoning Types
 // ############################################################################
 
-export type OpenAIReasoningEffort =
-  | "none"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh";
+export type OpenAIReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 export type AnthropicReasoningEffort = "low" | "medium" | "high" | "max";
 
@@ -88,10 +78,9 @@ export type ProviderReasoningEffortMap = {
   google: GoogleReasoningEffort;
 };
 
-export type ReasoningEffortForProvider<TProvider extends string> =
-  TProvider extends keyof ProviderReasoningEffortMap
-    ? ProviderReasoningEffortMap[TProvider]
-    : never;
+export type ReasoningEffortForProvider<TProvider extends string> = TProvider extends keyof ProviderReasoningEffortMap
+  ? ProviderReasoningEffortMap[TProvider]
+  : never;
 
 // ############################################################################
 // Generate Types
@@ -126,7 +115,7 @@ type SharedGenerateParams<TOutput extends Output.Output = DefaultOutput> = {
  */
 export type GenerateParams<
   TModels extends Record<string, { provider: string }>,
-  TOutput extends Output.Output = DefaultOutput
+  TOutput extends Output.Output = DefaultOutput,
 > = {
   [TModelKey in keyof TModels & string]: SharedGenerateParams<TOutput> & {
     /** The model alias to use */

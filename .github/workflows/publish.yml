@@ -1,0 +1,81 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Version bump to release"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write # push the release commit/tag and create the GitHub release
+  id-token: write # npm provenance / trusted publishing
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/setup
+
+      # Quality gates — a failure here stops the release before anything is published.
+      - name: Lint
+        run: bun run lint
+
+      - name: Format check
+        run: bun run fmt:check
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Bump + commit + tag LOCALLY only. Nothing is pushed to the remote yet, so
+      # if a later step fails the repo is left untouched (no orphan tag/commit).
+      - name: Bump version, commit and tag
+        run: bunx bumpp "${{ inputs.release }}" --yes --commit --tag --no-push
+
+      - name: Read released version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Publish first — this is the step most likely to fail. If it does, the
+      # local commit/tag are discarded with the runner and never reach origin.
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+
+      # Only after a successful publish do we push the release commit and tag.
+      - name: Push release commit and tag
+        run: |
+          git push origin HEAD
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub release
+        run: gh release create "v${{ steps.version.outputs.version }}"
+          --title "v${{ steps.version.outputs.version }}"
+          --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

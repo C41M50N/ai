@@ -18,5 +18,5 @@
     "isolatedModules": true
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "tmp", "example"]
+  "exclude": ["node_modules", "dist", "tmp", "example", "**/*.test.ts"]
 }

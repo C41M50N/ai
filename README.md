@@ -89,15 +89,15 @@ Generate text or structured output.
 
 ```typescript
 const { data, metadata } = await ai.generate({
-  model: "fast",           // required, autocompletes to your model aliases
-  prompt: "Hello",         // required
-  system: "Be helpful",    // optional
-  temperature: 0.7,        // optional
-  maxOutputTokens: 1000,   // optional
+  model: "fast", // required, autocompletes to your model aliases
+  prompt: "Hello", // required
+  system: "Be helpful", // optional
+  temperature: 0.7, // optional
+  maxOutputTokens: 1000, // optional
   reasoningEffort: "high", // optional, typed from the selected model's provider
-  providerOptions: {},     // optional, raw provider-specific escape hatch
-  output: schema,          // optional, for structured output
-  logKey: "my-request",    // optional, logs timing and cost
+  providerOptions: {}, // optional, raw provider-specific escape hatch
+  output: schema, // optional, for structured output
+  logKey: "my-request", // optional, logs timing and cost
 });
 ```
 

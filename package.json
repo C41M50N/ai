@@ -1,12 +1,26 @@
 {
   "name": "@cbuff/ai",
   "version": "1.2.0",
-  "author": "Charles Buffington",
   "description": "Type-safe LLM wrapper with provider/model registry and optional cost tracking",
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "anthropic",
+    "google",
+    "llm",
+    "openai",
+    "typescript",
+    "vercel-ai-sdk"
+  ],
+  "license": "MIT",
+  "author": "Charles Buffington",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/C41M50N/ai.git"
   },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,16 +30,25 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "bump": "bumpp"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "bumpp": "^11.1.0",
+    "oxfmt": "^0.44.0",
+    "oxlint": "^1.59.0"
   },
   "peerDependencies": {
     "ai": "^6.0.39",
@@ -44,16 +67,5 @@
     "@openrouter/ai-sdk-provider": {
       "optional": true
     }
-  },
-  "keywords": [
-    "llm",
-    "ai",
-    "ai-sdk",
-    "openai",
-    "anthropic",
-    "google",
-    "vercel-ai-sdk",
-    "typescript"
-  ],
-  "license": "MIT"
+  }
 }

@@ -1,13 +1,11 @@
 import { generateText, type LanguageModel, type Output } from "ai";
+
 import type {
-  AnthropicReasoningEffort,
   GenerateMetadata,
   GenerateParams,
   GenerateResponse,
-  GoogleReasoningEffort,
   LanguageModelProvider,
   ModelEntry,
-  OpenAIReasoningEffort,
   ProviderFactory,
 } from "./types.js";
 
@@ -67,11 +65,11 @@ type JsonObject = { [key: string]: JsonValue | undefined };
  */
 export function createAI<
   TProviders extends Record<string, ProviderFactory>,
-  TModels extends Record<string, ModelEntry<TProviders>>
+  TModels extends Record<string, ModelEntry<TProviders>>,
 >(config: { providers: TProviders; models: TModels }) {
-  const models = Object.freeze(
-    Object.keys(config.models) as Array<keyof TModels & string>
-  ) as ReadonlyArray<keyof TModels & string>;
+  const models = Object.freeze(Object.keys(config.models) as Array<keyof TModels & string>) as ReadonlyArray<
+    keyof TModels & string
+  >;
 
   // Provider cache: lazily resolved and stored
   const providerCache = new Map<keyof TProviders, LanguageModelProvider>();
@@ -101,7 +99,7 @@ export function createAI<
   function buildProviderOptions(
     providerKey: string,
     reasoningEffort: string | undefined,
-    providerOptions: ProviderOptions
+    providerOptions: ProviderOptions,
   ): ProviderOptions {
     if (!reasoningEffort) {
       return providerOptions;
@@ -129,7 +127,7 @@ export function createAI<
   function calculateCosts(
     modelKey: keyof TModels,
     inputTokens: number,
-    outputTokens: number
+    outputTokens: number,
   ): Pick<GenerateMetadata, "inputCostUsd" | "outputCostUsd" | "totalCostUsd"> {
     const modelConfig = config.models[modelKey]!;
 
@@ -152,15 +150,11 @@ export function createAI<
    * Generate text or structured output using the configured models.
    */
   async function generate<TOutput extends Output.Output = Output.Output<string, string>>(
-    params: GenerateParams<TModels, TOutput>
+    params: GenerateParams<TModels, TOutput>,
   ): Promise<GenerateResponse<TOutput>> {
     const modelConfig = config.models[params.model]!;
     const model = await getModel(params.model);
-    const providerOptions = buildProviderOptions(
-      modelConfig.provider,
-      params.reasoningEffort,
-      params.providerOptions
-    );
+    const providerOptions = buildProviderOptions(modelConfig.provider, params.reasoningEffort, params.providerOptions);
 
     const startTime = Date.now();
     const result = await generateText({
@@ -181,11 +175,12 @@ export function createAI<
 
     // Log if requested
     if (params.logKey) {
-      const costStr = costs.totalCostUsd !== undefined
-        ? ` cost: ${costFormatter.format(costs.totalCostUsd)} (in: ${costFormatter.format(costs.inputCostUsd!)}, out: ${costFormatter.format(costs.outputCostUsd!)})`
-        : "";
+      const costStr =
+        costs.totalCostUsd !== undefined
+          ? ` cost: ${costFormatter.format(costs.totalCostUsd)} (in: ${costFormatter.format(costs.inputCostUsd!)}, out: ${costFormatter.format(costs.outputCostUsd!)})`
+          : "";
       console.log(
-        `[LLM][${params.logKey}] ${(responseTimeMs / 1000).toFixed(2)}s using ${String(params.model)}${costStr}`
+        `[LLM][${params.logKey}] ${(responseTimeMs / 1000).toFixed(2)}s using ${String(params.model)}${costStr}`,
       );
     }
 
@@ -205,10 +200,7 @@ export function createAI<
 
 export type { AIConfig } from "./types.js";
 
-function getReasoningProviderOptions(
-  providerKey: string,
-  reasoningEffort: string
-): JsonObject | undefined {
+function getReasoningProviderOptions(providerKey: string, reasoningEffort: string): JsonObject | undefined {
   switch (providerKey) {
     case "openai":
       return { reasoningEffort };

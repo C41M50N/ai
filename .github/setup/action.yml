@@ -17,5 +17,6 @@ runs:
       with:
         bun-version: "latest"
 
-    - shell: bash
-      run: bun install
+    - name: Install dependencies
+      shell: bash
+      run: bun install --frozen-lockfile
