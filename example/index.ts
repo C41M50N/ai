@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   const { data, metadata } = await ai.generate({
     model: "fast",
     prompt: "Suggest three names for a TypeScript AI SDK client.",
-    reasoningEffort: "minimal",
+    reasoning: "minimal",
     output: Output.object({
       schema: z.object({
         names: z.array(z.string()).length(3),

@@ -63,26 +63,6 @@ export type AIConfig<
 };
 
 // ############################################################################
-// Reasoning Types
-// ############################################################################
-
-export type OpenAIReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-
-export type AnthropicReasoningEffort = "low" | "medium" | "high" | "max";
-
-export type GoogleReasoningEffort = "minimal" | "low" | "medium" | "high";
-
-export type ProviderReasoningEffortMap = {
-  openai: OpenAIReasoningEffort;
-  anthropic: AnthropicReasoningEffort;
-  google: GoogleReasoningEffort;
-};
-
-export type ReasoningEffortForProvider<TProvider extends string> = TProvider extends keyof ProviderReasoningEffortMap
-  ? ProviderReasoningEffortMap[TProvider]
-  : never;
-
-// ############################################################################
 // Generate Types
 // ############################################################################
 
@@ -104,26 +84,20 @@ type SharedGenerateParams<TOutput extends Output.Output = DefaultOutput> = {
   output?: TOutput;
   /** Optional key for logging */
   logKey?: string;
-} & Pick<GenerateTextParams, "temperature" | "maxOutputTokens" | "providerOptions">;
+} & Pick<GenerateTextParams, "temperature" | "maxOutputTokens" | "reasoning" | "providerOptions">;
 
 /**
  * Parameters for the generate function.
- * The allowed reasoningEffort values are inferred from the selected model's provider.
- *
  * @template TModels - Record of available model configurations
  * @template TOutput - Output schema type
  */
 export type GenerateParams<
   TModels extends Record<string, { provider: string }>,
   TOutput extends Output.Output = DefaultOutput,
-> = {
-  [TModelKey in keyof TModels & string]: SharedGenerateParams<TOutput> & {
-    /** The model alias to use */
-    model: TModelKey;
-    /** Optional provider-native reasoning effort for top providers */
-    reasoningEffort?: ReasoningEffortForProvider<TModels[TModelKey]["provider"] & string>;
-  };
-}[keyof TModels & string];
+> = SharedGenerateParams<TOutput> & {
+  /** The model alias to use */
+  model: keyof TModels & string;
+};
 
 /**
  * Response metadata from a generate call.

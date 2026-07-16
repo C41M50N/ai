@@ -1,6 +1,6 @@
 {
   "name": "@cbuff/ai",
-  "version": "1.2.1",
+  "version": "2.0.0",
   "description": "Type-safe LLM wrapper with provider/model registry and optional cost tracking",
   "keywords": [
     "ai",
@@ -46,26 +46,13 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "ai": "^7.0.0",
     "bumpp": "^11.1.0",
     "oxfmt": "^0.44.0",
     "oxlint": "^1.59.0"
   },
   "peerDependencies": {
-    "ai": "^6.0.39",
+    "ai": "^7.0.0",
     "typescript": "^5"
-  },
-  "peerDependenciesMeta": {
-    "@ai-sdk/openai": {
-      "optional": true
-    },
-    "@ai-sdk/anthropic": {
-      "optional": true
-    },
-    "@ai-sdk/google": {
-      "optional": true
-    },
-    "@openrouter/ai-sdk-provider": {
-      "optional": true
-    }
   }
 }
