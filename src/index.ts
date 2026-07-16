@@ -1,5 +1,6 @@
 import { generateText, type LanguageModel, type Output } from "ai";
 
+import { AIGenerationError } from "./types.js";
 import type {
   GenerateMetadata,
   GenerateParams,
@@ -11,6 +12,7 @@ import type {
 
 // Re-export public types
 export type {
+  AIGenerationErrorStage,
   GenerateMetadata,
   GenerateParams,
   GenerateResponse,
@@ -18,6 +20,7 @@ export type {
   ModelEntry,
   ProviderFactory,
 } from "./types.js";
+export { AIGenerationError } from "./types.js";
 
 // ############################################################################
 // Cost Formatter
@@ -69,14 +72,26 @@ export function createAI<
   /**
    * Resolves a provider by key, using cache if available.
    */
-  async function getProvider(providerKey: keyof TProviders): Promise<LanguageModelProvider> {
+  async function getProvider(
+    providerKey: keyof TProviders,
+    context: { modelAlias: string; modelId: string },
+  ): Promise<LanguageModelProvider> {
     const cached = providerCache.get(providerKey);
     if (cached) return cached;
 
     const factory = config.providers[providerKey]!;
-    const provider = await Promise.resolve(factory());
-    providerCache.set(providerKey, provider);
-    return provider;
+    try {
+      const provider = await Promise.resolve(factory());
+      providerCache.set(providerKey, provider);
+      return provider;
+    } catch (cause) {
+      throw new AIGenerationError({
+        ...context,
+        provider: String(providerKey),
+        stage: "provider_initialization",
+        cause,
+      });
+    }
   }
 
   /**
@@ -84,8 +99,22 @@ export function createAI<
    */
   async function getModel(modelKey: keyof TModels): Promise<LanguageModel> {
     const modelConfig = config.models[modelKey]!;
-    const provider = await getProvider(modelConfig.provider);
-    return provider(modelConfig.id);
+    const context = {
+      modelAlias: String(modelKey),
+      modelId: String(modelConfig.id),
+    };
+    const provider = await getProvider(modelConfig.provider, context);
+
+    try {
+      return provider(modelConfig.id);
+    } catch (cause) {
+      throw new AIGenerationError({
+        ...context,
+        provider: String(modelConfig.provider),
+        stage: "model_creation",
+        cause,
+      });
+    }
   }
 
   /**
@@ -120,22 +149,38 @@ export function createAI<
   async function generate<TOutput extends Output.Output = Output.Output<string, string>>(
     params: GenerateParams<TModels, TOutput>,
   ): Promise<GenerateResponse<TOutput>> {
+    const modelConfig = config.models[params.model]!;
     const model = await getModel(params.model);
 
     const startTime = Date.now();
-    const result = await generateText({
-      model,
-      prompt: params.prompt,
-      system: params.system,
-      temperature: params.temperature,
-      maxOutputTokens: params.maxOutputTokens,
-      reasoning: params.reasoning,
-      providerOptions: params.providerOptions,
-      output: params.output,
-      abortSignal: params.abortSignal,
-      maxRetries: params.maxRetries,
-      timeout: params.timeout,
-    });
+    let result;
+    try {
+      result = await generateText({
+        model,
+        prompt: params.prompt,
+        system: params.system,
+        temperature: params.temperature,
+        maxOutputTokens: params.maxOutputTokens,
+        reasoning: params.reasoning,
+        providerOptions: params.providerOptions,
+        output: params.output,
+        abortSignal: params.abortSignal,
+        maxRetries: params.maxRetries,
+        timeout: params.timeout,
+      });
+    } catch (cause) {
+      if (params.abortSignal?.aborted && cause === params.abortSignal.reason) {
+        throw cause;
+      }
+
+      throw new AIGenerationError({
+        modelAlias: String(params.model),
+        provider: String(modelConfig.provider),
+        modelId: String(modelConfig.id),
+        stage: "generation",
+        cause,
+      });
+    }
     const endTime = Date.now();
 
     const responseTimeMs = endTime - startTime;

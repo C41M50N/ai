@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { MockLanguageModelV4 } from "ai/test";
 
-import { createAI } from "./index.js";
+import { AIGenerationError, createAI } from "./index.js";
 
 describe("createAI", () => {
   const makeClient = () =>
@@ -96,9 +96,10 @@ describe("createAI", () => {
   });
 
   it("forwards maxRetries", async () => {
+    const providerError = new Error("provider failure");
     const model = new MockLanguageModelV4({
       doGenerate: async () => {
-        throw new Error("provider failure");
+        throw providerError;
       },
     });
     const ai = createAI({
@@ -110,8 +111,87 @@ describe("createAI", () => {
       },
     });
 
-    await expect(ai.generate({ model: "fast", prompt: "Hello", maxRetries: 0 })).rejects.toThrow("provider failure");
+    const error = await ai.generate({ model: "fast", prompt: "Hello", maxRetries: 0 }).catch((error) => error);
+
+    expect(error).toBeInstanceOf(AIGenerationError);
+    expect(error).toMatchObject({
+      modelAlias: "fast",
+      provider: "fake",
+      modelId: "fake-fast",
+      stage: "generation",
+      cause: providerError,
+    });
+    expect(error.message).toContain(
+      'AI generation failed for model "fast" (provider "fake", model ID "fake-fast") during generation',
+    );
     expect(model.doGenerateCalls).toHaveLength(1);
+  });
+
+  it("adds context to provider initialization failures", async () => {
+    const providerError = new Error("missing API key");
+    const ai = createAI({
+      providers: {
+        fake: () => {
+          throw providerError;
+        },
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+
+    const error = await ai.generate({ model: "fast", prompt: "Hello" }).catch((error) => error);
+
+    expect(error).toMatchObject({
+      modelAlias: "fast",
+      provider: "fake",
+      modelId: "fake-fast",
+      stage: "provider_initialization",
+      cause: providerError,
+    });
+  });
+
+  it("adds context to model creation failures", async () => {
+    const modelError = new Error("unknown model");
+    const ai = createAI({
+      providers: {
+        fake: () => () => {
+          throw modelError;
+        },
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+
+    const error = await ai.generate({ model: "fast", prompt: "Hello" }).catch((error) => error);
+
+    expect(error).toMatchObject({
+      modelAlias: "fast",
+      provider: "fake",
+      modelId: "fake-fast",
+      stage: "model_creation",
+      cause: modelError,
+    });
+  });
+
+  it("preserves non-Error thrown values as the cause", async () => {
+    const ai = createAI({
+      providers: {
+        fake: () => {
+          throw "provider unavailable";
+        },
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+
+    const error = await ai.generate({ model: "fast", prompt: "Hello" }).catch((error) => error);
+
+    expect(error).toBeInstanceOf(AIGenerationError);
+    expect(error.cause).toBe("provider unavailable");
+    expect(error.message).toContain("provider unavailable");
   });
 
   it("forwards timeout configurations", async () => {

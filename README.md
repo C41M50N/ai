@@ -117,6 +117,26 @@ type ModelList = typeof ai.models;
 type Model = ModelList[number];
 ```
 
+### `AIGenerationError`
+
+Failures from provider initialization, model creation, or generation are wrapped with model registry context:
+
+```typescript
+import { AIGenerationError } from "@cbuff/ai";
+
+try {
+  await ai.generate({ model: "fast", prompt: "Hello" });
+} catch (error) {
+  if (error instanceof AIGenerationError) {
+    console.error(error.modelAlias, error.provider, error.modelId, error.stage);
+    console.error(error.cause); // original provider or AI SDK error
+  }
+}
+```
+
+The `stage` is `"provider_initialization"`, `"model_creation"`, or `"generation"`. Caller-provided abort
+reasons are rethrown unchanged.
+
 **Returns:**
 
 ```typescript

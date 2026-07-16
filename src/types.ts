@@ -1,6 +1,43 @@
 import type { generateText, InferGenerateOutput, LanguageModel, Output } from "ai";
 
 // ############################################################################
+// Error Types
+// ############################################################################
+
+export type AIGenerationErrorStage = "provider_initialization" | "model_creation" | "generation";
+
+/**
+ * Error thrown when an ai.generate call fails.
+ * Includes model registry context while preserving the original failure as cause.
+ */
+export class AIGenerationError extends Error {
+  readonly modelAlias: string;
+  readonly provider: string;
+  readonly modelId: string;
+  readonly stage: AIGenerationErrorStage;
+
+  constructor(options: {
+    modelAlias: string;
+    provider: string;
+    modelId: string;
+    stage: AIGenerationErrorStage;
+    cause: unknown;
+  }) {
+    const causeMessage = options.cause instanceof Error ? options.cause.message : String(options.cause);
+    super(
+      `AI generation failed for model "${options.modelAlias}" (provider "${options.provider}", model ID "${options.modelId}") during ${options.stage}: ${causeMessage}`,
+      { cause: options.cause },
+    );
+
+    this.name = "AIGenerationError";
+    this.modelAlias = options.modelAlias;
+    this.provider = options.provider;
+    this.modelId = options.modelId;
+    this.stage = options.stage;
+  }
+}
+
+// ############################################################################
 // Provider Types
 // ############################################################################
 
