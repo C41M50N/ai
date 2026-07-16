@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Version bump to release"
+        description: "Version to publish"
         required: true
         default: patch
         type: choice
         options:
+          - current
           - patch
           - minor
           - major
@@ -53,14 +54,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # Bump + commit + tag LOCALLY only. Nothing is pushed to the remote yet, so
-      # if a later step fails the repo is left untouched (no orphan tag/commit).
+      # Bump + commit + tag LOCALLY only when requested. Nothing is pushed to the
+      # remote yet, so a later failure cannot leave an orphan release commit or tag.
       - name: Bump version, commit and tag
+        if: inputs.release != 'current'
         run: bunx bumpp "${{ inputs.release }}" --yes --commit --tag --no-push
 
       - name: Read released version
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Tag current version
+        if: inputs.release == 'current'
+        run: git tag "v${{ steps.version.outputs.version }}"
 
       # Publish first — this is the step most likely to fail. If it does, the
       # local commit/tag are discarded with the runner and never reach origin.
@@ -68,10 +74,12 @@ jobs:
         run: npm publish --provenance --access public
 
       # Only after a successful publish do we push the release commit and tag.
-      - name: Push release commit and tag
-        run: |
-          git push origin HEAD
-          git push origin "v${{ steps.version.outputs.version }}"
+      - name: Push release commit
+        if: inputs.release != 'current'
+        run: git push origin HEAD
+
+      - name: Push release tag
+        run: git push origin "v${{ steps.version.outputs.version }}"
 
       - name: Create GitHub release
         run: gh release create "v${{ steps.version.outputs.version }}"
