@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Add `abortSignal`, `maxRetries`, and `timeout` pass-through options to `ai.generate`.
+
 ## 2.0.0 - 2026-07-16
 
 ### Breaking changes

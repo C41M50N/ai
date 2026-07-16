@@ -132,6 +132,9 @@ export function createAI<
       reasoning: params.reasoning,
       providerOptions: params.providerOptions,
       output: params.output,
+      abortSignal: params.abortSignal,
+      maxRetries: params.maxRetries,
+      timeout: params.timeout,
     });
     const endTime = Date.now();
 

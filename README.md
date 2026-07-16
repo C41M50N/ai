@@ -96,6 +96,9 @@ const { data, metadata } = await ai.generate({
   maxOutputTokens: 1000, // optional
   reasoning: "high", // optional, standardized by AI SDK v7
   providerOptions: {}, // optional, raw provider-specific escape hatch
+  abortSignal: controller.signal, // optional, cancels the request
+  maxRetries: 0, // optional, defaults to AI SDK's retry behavior
+  timeout: { totalMs: 30_000 }, // optional, AI SDK timeout configuration
   output: schema, // optional, for structured output
   logKey: "my-request", // optional, logs timing and cost
 });

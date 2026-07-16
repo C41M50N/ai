@@ -64,4 +64,79 @@ describe("createAI", () => {
       totalCostUsd: 0.00045,
     });
   });
+
+  it("forwards abort signals", async () => {
+    const controller = new AbortController();
+    const abortReason = new Error("cancelled");
+    const model = new MockLanguageModelV4({
+      doGenerate: async ({ abortSignal }) => {
+        expect(abortSignal).toBeDefined();
+
+        return await new Promise((_, reject) => {
+          const rejectWithReason = () => reject(abortSignal?.reason);
+          abortSignal?.addEventListener("abort", rejectWithReason, { once: true });
+          controller.abort(abortReason);
+
+          if (abortSignal?.aborted) rejectWithReason();
+        });
+      },
+    });
+    const ai = createAI({
+      providers: {
+        fake: () => () => model,
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+
+    await expect(ai.generate({ model: "fast", prompt: "Hello", abortSignal: controller.signal })).rejects.toBe(
+      abortReason,
+    );
+  });
+
+  it("forwards maxRetries", async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        throw new Error("provider failure");
+      },
+    });
+    const ai = createAI({
+      providers: {
+        fake: () => () => model,
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+
+    await expect(ai.generate({ model: "fast", prompt: "Hello", maxRetries: 0 })).rejects.toThrow("provider failure");
+    expect(model.doGenerateCalls).toHaveLength(1);
+  });
+
+  it("forwards timeout configurations", async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async ({ abortSignal }) => {
+        return await new Promise((_, reject) => {
+          const rejectWithReason = () => reject(abortSignal?.reason);
+          abortSignal?.addEventListener("abort", rejectWithReason, { once: true });
+
+          if (abortSignal?.aborted) rejectWithReason();
+        });
+      },
+    });
+    const ai = createAI({
+      providers: {
+        fake: () => () => model,
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+
+    await expect(
+      ai.generate({ model: "fast", prompt: "Hello", maxRetries: 0, timeout: { totalMs: 10 } }),
+    ).rejects.toBeDefined();
+    expect(model.doGenerateCalls).toHaveLength(1);
+  });
 });

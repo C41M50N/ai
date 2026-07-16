@@ -84,7 +84,10 @@ type SharedGenerateParams<TOutput extends Output.Output = DefaultOutput> = {
   output?: TOutput;
   /** Optional key for logging */
   logKey?: string;
-} & Pick<GenerateTextParams, "temperature" | "maxOutputTokens" | "reasoning" | "providerOptions">;
+} & Pick<
+  GenerateTextParams,
+  "temperature" | "maxOutputTokens" | "reasoning" | "providerOptions" | "abortSignal" | "maxRetries" | "timeout"
+>;
 
 /**
  * Parameters for the generate function.
