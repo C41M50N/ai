@@ -39,7 +39,7 @@ const ai = createAI({
 const { data, metadata } = await ai.generate({
   model: "fast",
   prompt: "Hello, world!",
-  reasoningEffort: "medium",
+  reasoning: "medium",
 });
 
 console.log(data);
@@ -94,20 +94,14 @@ const { data, metadata } = await ai.generate({
   system: "Be helpful", // optional
   temperature: 0.7, // optional
   maxOutputTokens: 1000, // optional
-  reasoningEffort: "high", // optional, typed from the selected model's provider
+  reasoning: "high", // optional, standardized by AI SDK v7
   providerOptions: {}, // optional, raw provider-specific escape hatch
   output: schema, // optional, for structured output
   logKey: "my-request", // optional, logs timing and cost
 });
 ```
 
-For top providers, `reasoningEffort` is provider-native and inferred from the selected model:
-
-- OpenAI: `"none" | "minimal" | "low" | "medium" | "high" | "xhigh"`
-- Anthropic: `"low" | "medium" | "high" | "max"`
-- Google: `"minimal" | "low" | "medium" | "high"`
-
-`reasoningEffort` is translated into provider-specific `providerOptions` behind the scenes. This library does not validate whether an individual model supports a given reasoning value. For non-top providers, or for unsupported provider-specific knobs, use `providerOptions` directly.
+`reasoning` uses AI SDK v7's provider-agnostic reasoning levels: `"provider-default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh"`. The AI SDK translates the selected level into provider-native settings. This library does not validate whether an individual model supports a given reasoning value. Use `providerOptions` for provider-specific settings outside the standardized levels.
 
 ### `ai.models`
 

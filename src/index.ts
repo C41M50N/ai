@@ -11,14 +11,11 @@ import type {
 
 // Re-export public types
 export type {
-  AnthropicReasoningEffort,
   GenerateMetadata,
   GenerateParams,
   GenerateResponse,
-  GoogleReasoningEffort,
   LanguageModelProvider,
   ModelEntry,
-  OpenAIReasoningEffort,
   ProviderFactory,
 } from "./types.js";
 
@@ -31,11 +28,6 @@ const costFormatter = new Intl.NumberFormat("en-US", {
   currency: "USD",
   minimumFractionDigits: 4,
 });
-
-type GenerateTextParams = Parameters<typeof generateText>[0];
-type ProviderOptions = GenerateTextParams["providerOptions"];
-type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
-type JsonObject = { [key: string]: JsonValue | undefined };
 
 // ############################################################################
 // createAI Factory
@@ -96,30 +88,6 @@ export function createAI<
     return provider(modelConfig.id);
   }
 
-  function buildProviderOptions(
-    providerKey: string,
-    reasoningEffort: string | undefined,
-    providerOptions: ProviderOptions,
-  ): ProviderOptions {
-    if (!reasoningEffort) {
-      return providerOptions;
-    }
-
-    const generatedProviderOptions = getReasoningProviderOptions(providerKey, reasoningEffort);
-    if (!generatedProviderOptions) {
-      return providerOptions;
-    }
-
-    const existingProviderOptions = providerOptions?.[providerKey];
-    return {
-      ...providerOptions,
-      [providerKey]: {
-        ...generatedProviderOptions,
-        ...(isPlainObject(existingProviderOptions) ? existingProviderOptions : {}),
-      },
-    };
-  }
-
   /**
    * Calculates costs for the given model and token usage.
    * Returns undefined values if costs are not configured.
@@ -152,9 +120,7 @@ export function createAI<
   async function generate<TOutput extends Output.Output = Output.Output<string, string>>(
     params: GenerateParams<TModels, TOutput>,
   ): Promise<GenerateResponse<TOutput>> {
-    const modelConfig = config.models[params.model]!;
     const model = await getModel(params.model);
-    const providerOptions = buildProviderOptions(modelConfig.provider, params.reasoningEffort, params.providerOptions);
 
     const startTime = Date.now();
     const result = await generateText({
@@ -163,8 +129,9 @@ export function createAI<
       system: params.system,
       temperature: params.temperature,
       maxOutputTokens: params.maxOutputTokens,
-      providerOptions,
-      experimental_output: params.output,
+      reasoning: params.reasoning,
+      providerOptions: params.providerOptions,
+      output: params.output,
     });
     const endTime = Date.now();
 
@@ -199,27 +166,3 @@ export function createAI<
 }
 
 export type { AIConfig } from "./types.js";
-
-function getReasoningProviderOptions(providerKey: string, reasoningEffort: string): JsonObject | undefined {
-  switch (providerKey) {
-    case "openai":
-      return { reasoningEffort };
-    case "anthropic":
-      return {
-        thinking: { type: "adaptive" },
-        effort: reasoningEffort,
-      };
-    case "google":
-      return {
-        thinkingConfig: {
-          thinkingLevel: reasoningEffort,
-        },
-      };
-    default:
-      return undefined;
-  }
-}
-
-function isPlainObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
