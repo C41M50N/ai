@@ -19,6 +19,7 @@ export type {
   LanguageModelProvider,
   ModelEntry,
   ProviderFactory,
+  ReasoningEffort,
 } from "./types.js";
 export { AIGenerationError } from "./types.js";
 

@@ -105,6 +105,12 @@ export type AIConfig<
 
 type GenerateTextParams = Parameters<typeof generateText>[0];
 
+/**
+ * Reasoning effort level for a generate call. Controls how much reasoning the
+ * model performs before responding. Derived from AI SDK v7 to stay in sync.
+ */
+export type ReasoningEffort = NonNullable<GenerateTextParams["reasoning"]>;
+
 type DefaultOutput = Output.Output<string, string>;
 
 /**

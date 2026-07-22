@@ -6,6 +6,7 @@
 
 - Add `abortSignal`, `maxRetries`, and `timeout` pass-through options to `ai.generate`.
 - Add `AIGenerationError` with model alias, provider, model ID, failure stage, and the original error as `cause`.
+- Export a `ReasoningEffort` type derived from AI SDK v7's standardized `reasoning` option.
 
 ## 2.0.0 - 2026-07-16
 
