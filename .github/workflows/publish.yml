@@ -64,6 +64,50 @@ jobs:
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare release notes
+        id: notes
+        run: |
+          # Fall back to the root commit on a first release, when no tag exists yet.
+          previous_tag="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+          release_tag="v${{ steps.version.outputs.version }}"
+          comparison_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${previous_tag}...${release_tag}"
+          notes_path="${RUNNER_TEMP}/release-notes.md"
+
+          RELEASE_VERSION="${{ steps.version.outputs.version }}" \
+          COMPARISON_URL="$comparison_url" \
+          RELEASE_NOTES_PATH="$notes_path" \
+          bun -e '
+            const version = Bun.env.RELEASE_VERSION;
+            const comparisonUrl = Bun.env.COMPARISON_URL;
+            const notesPath = Bun.env.RELEASE_NOTES_PATH;
+            const lines = (await Bun.file("CHANGELOG.md").text()).split(/\r?\n/);
+            const heading = `## ${version}`;
+            const start = lines.findIndex(
+              (line) => line === heading || line.startsWith(`${heading} - `),
+            );
+
+            if (start === -1) {
+              throw new Error(`CHANGELOG.md has no entry for version ${version}`);
+            }
+
+            const nextHeading = lines.findIndex(
+              (line, index) => index > start && line.startsWith("## "),
+            );
+            const end = nextHeading === -1 ? lines.length : nextHeading;
+            const notes = lines.slice(start + 1, end).join("\n").trim();
+
+            if (!notes) {
+              throw new Error(`CHANGELOG.md entry for version ${version} is empty`);
+            }
+
+            await Bun.write(
+              notesPath,
+              `${notes}\n\n**Full Changelog**: ${comparisonUrl}\n`,
+            );
+          '
+
+          echo "path=$notes_path" >> "$GITHUB_OUTPUT"
+
       - name: Tag current version
         if: inputs.release == 'current'
         run: git tag "v${{ steps.version.outputs.version }}"
@@ -84,6 +128,6 @@ jobs:
       - name: Create GitHub release
         run: gh release create "v${{ steps.version.outputs.version }}"
           --title "v${{ steps.version.outputs.version }}"
-          --generate-notes
+          --notes-file "${{ steps.notes.outputs.path }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
