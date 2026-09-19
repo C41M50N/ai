@@ -67,7 +67,8 @@ jobs:
       - name: Prepare release notes
         id: notes
         run: |
-          previous_tag="$(git describe --tags --abbrev=0 HEAD^)"
+          # Fall back to the root commit on a first release, when no tag exists yet.
+          previous_tag="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
           release_tag="v${{ steps.version.outputs.version }}"
           comparison_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${previous_tag}...${release_tag}"
           notes_path="${RUNNER_TEMP}/release-notes.md"
