@@ -1,6 +1,6 @@
 import { generateText, type LanguageModel, type Output } from "ai";
 
-import { AIGenerationError } from "./types.js";
+import { AIGenerationError, WRAPPER_ONLY_KEYS } from "./types.js";
 import type {
   GenerateMetadata,
   GenerateParams,
@@ -37,9 +37,22 @@ const costFormatter = new Intl.NumberFormat("en-US", {
 // createAI Factory
 // ############################################################################
 
-/**
-  * Creates a type-safe AI client with the given providers and models.
+/** `Omit` that distributes over unions instead of collapsing them. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
+/**
+ * Return a shallow copy of `obj` without the given keys.
+ */
+function omit<T extends object, K extends readonly (keyof T)[]>(obj: T, keys: K): DistributiveOmit<T, K[number]> {
+  const result: Record<PropertyKey, unknown> = { ...(obj as Record<PropertyKey, unknown>) };
+  for (const key of keys) {
+    delete result[key];
+  }
+  return result as DistributiveOmit<T, K[number]>;
+}
+
+/**
+ * Creates a type-safe AI client with the given providers and models.
  *
  * @example
  * ```typescript
@@ -150,24 +163,19 @@ export function createAI<
   async function generate<TOutput extends Output.Output = Output.Output<string, string>>(
     params: GenerateParams<TModels, TOutput>,
   ): Promise<GenerateResponse<TOutput>> {
-    const modelConfig = config.models[params.model]!;
-    const model = await getModel(params.model);
+    const { model: modelAlias, logKey } = params;
+    // Strip wrapper-only keys so they never reach the SDK. Wrapper-owned SDK
+    // keys (currently `model`) are placed after the spread so they always win.
+    const options = omit(params, WRAPPER_ONLY_KEYS);
+    const modelConfig = config.models[modelAlias]!;
+    const model = await getModel(modelAlias);
 
     const startTime = Date.now();
     let result;
     try {
       result = await generateText({
+        ...options,
         model,
-        prompt: params.prompt,
-        system: params.system,
-        temperature: params.temperature,
-        maxOutputTokens: params.maxOutputTokens,
-        reasoning: params.reasoning,
-        providerOptions: params.providerOptions,
-        output: params.output,
-        abortSignal: params.abortSignal,
-        maxRetries: params.maxRetries,
-        timeout: params.timeout,
       });
     } catch (cause) {
       if (params.abortSignal?.aborted && cause === params.abortSignal.reason) {
@@ -175,7 +183,7 @@ export function createAI<
       }
 
       throw new AIGenerationError({
-        modelAlias: String(params.model),
+        modelAlias: String(modelAlias),
         provider: String(modelConfig.provider),
         modelId: String(modelConfig.id),
         stage: "generation",
@@ -187,17 +195,15 @@ export function createAI<
     const responseTimeMs = endTime - startTime;
     const inputTokens = result.usage?.inputTokens ?? 0;
     const outputTokens = result.usage?.outputTokens ?? 0;
-    const costs = calculateCosts(params.model, inputTokens, outputTokens);
+    const costs = calculateCosts(modelAlias, inputTokens, outputTokens);
 
     // Log if requested
-    if (params.logKey) {
+    if (logKey) {
       const costStr =
         costs.totalCostUsd !== undefined
           ? ` cost: ${costFormatter.format(costs.totalCostUsd)} (in: ${costFormatter.format(costs.inputCostUsd!)}, out: ${costFormatter.format(costs.outputCostUsd!)})`
           : "";
-      console.log(
-        `[LLM][${params.logKey}] ${(responseTimeMs / 1000).toFixed(2)}s using ${String(params.model)}${costStr}`,
-      );
+      console.log(`[LLM][${logKey}] ${(responseTimeMs / 1000).toFixed(2)}s using ${String(modelAlias)}${costStr}`);
     }
 
     return {

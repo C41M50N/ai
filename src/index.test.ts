@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import { jsonSchema, stepCountIs, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { AIGenerationError, createAI } from "./index.js";
@@ -63,6 +64,96 @@ describe("createAI", () => {
       outputCostUsd: 0.0002,
       totalCostUsd: 0.00045,
     });
+  });
+
+  it("accepts messages instead of a prompt", async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        content: [{ type: "text", text: "Hi there" }],
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: {
+          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 5, text: 5, reasoning: 0 },
+        },
+        warnings: [],
+      }),
+    });
+    const ai = createAI({
+      providers: {
+        fake: () => () => model,
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+
+    const result = await ai.generate({
+      model: "fast",
+      instructions: "Be brief",
+      messages: [{ role: "user", content: "Hello" }],
+    });
+
+    expect(model.doGenerateCalls[0]?.prompt).toEqual([
+      { role: "system", content: "Be brief" },
+      { role: "user", content: [{ type: "text", text: "Hello" }] },
+    ]);
+    expect(result.data).toBe("Hi there");
+  });
+
+  it("forwards AI SDK options such as tools and stopWhen", async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        content: [{ type: "text", text: "Done" }],
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: {
+          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 5, text: 5, reasoning: 0 },
+        },
+        warnings: [],
+      }),
+    });
+    const ai = createAI({
+      providers: {
+        fake: () => () => model,
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+    const lookup = tool({
+      description: "Look something up",
+      inputSchema: jsonSchema<{ query: string }>({
+        type: "object",
+        properties: { query: { type: "string" } },
+        required: ["query"],
+      }),
+      execute: async ({ query }) => query,
+    });
+
+    const result = await ai.generate({
+      model: "fast",
+      prompt: "Hello",
+      tools: { lookup },
+      stopWhen: stepCountIs(1),
+    });
+
+    const call = model.doGenerateCalls[0]!;
+    expect(call.tools?.map((t) => t.name)).toEqual(["lookup"]);
+    expect(result.data).toBe("Done");
+  });
+
+  it("rejects passing both prompt and messages at the type level", () => {
+    const ai = makeClient();
+    // @ts-expect-error prompt and messages are mutually exclusive
+    const both = () => ai.generate({ model: "fast", prompt: "Hello", messages: [] });
+    // @ts-expect-error one of prompt or messages is required
+    const neither = () => ai.generate({ model: "fast" });
+    // @ts-expect-error prompt must be a string
+    const messagesAsPrompt = () => ai.generate({ model: "fast", prompt: [{ role: "user", content: "Hello" }] });
+
+    expect(typeof both).toBe("function");
+    expect(typeof neither).toBe("function");
+    expect(typeof messagesAsPrompt).toBe("function");
   });
 
   it("forwards abort signals", async () => {
