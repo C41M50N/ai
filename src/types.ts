@@ -1,4 +1,4 @@
-import type { generateText, InferGenerateOutput, LanguageModel, Output, Prompt } from "ai";
+import type { generateText, InferGenerateOutput, LanguageModel, ModelMessage, Output } from "ai";
 
 // ############################################################################
 // Error Types
@@ -111,8 +111,20 @@ type GenerateTextParams = Parameters<typeof generateText>[0];
  */
 export type ReasoningEffort = NonNullable<GenerateTextParams["reasoning"]>;
 
-// Distribute over Prompt so picking the input fields preserves mutual exclusivity.
-type GenerateInput<T extends Prompt = Prompt> = T extends Prompt ? Pick<T, "prompt" | "messages"> : never;
+/**
+ * Generation input. Provide exactly one of `prompt` or `messages`.
+ */
+type GenerateInput =
+  | {
+      /** The user prompt */
+      prompt: string;
+      messages?: never;
+    }
+  | {
+      /** The conversation messages */
+      messages: Array<ModelMessage>;
+      prompt?: never;
+    };
 
 type DefaultOutput = Output.Output<string, string>;
 
@@ -122,8 +134,8 @@ type DefaultOutput = Output.Output<string, string>;
  * @template TOutput - Output schema type
  */
 type SharedGenerateParams<TOutput extends Output.Output = DefaultOutput> = {
-  /** Optional system prompt */
-  system?: string;
+  /** Optional system instructions */
+  instructions?: string;
   /** Optional output schema for structured generation */
   output?: TOutput;
   /** Optional key for logging */

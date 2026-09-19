@@ -65,6 +65,54 @@ describe("createAI", () => {
     });
   });
 
+  it("accepts messages instead of a prompt", async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        content: [{ type: "text", text: "Hi there" }],
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: {
+          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 5, text: 5, reasoning: 0 },
+        },
+        warnings: [],
+      }),
+    });
+    const ai = createAI({
+      providers: {
+        fake: () => () => model,
+      },
+      models: {
+        fast: { provider: "fake", id: "fake-fast" },
+      },
+    });
+
+    const result = await ai.generate({
+      model: "fast",
+      instructions: "Be brief",
+      messages: [{ role: "user", content: "Hello" }],
+    });
+
+    expect(model.doGenerateCalls[0]?.prompt).toEqual([
+      { role: "system", content: "Be brief" },
+      { role: "user", content: [{ type: "text", text: "Hello" }] },
+    ]);
+    expect(result.data).toBe("Hi there");
+  });
+
+  it("rejects passing both prompt and messages at the type level", () => {
+    const ai = makeClient();
+    // @ts-expect-error prompt and messages are mutually exclusive
+    const both = () => ai.generate({ model: "fast", prompt: "Hello", messages: [] });
+    // @ts-expect-error one of prompt or messages is required
+    const neither = () => ai.generate({ model: "fast" });
+    // @ts-expect-error prompt must be a string
+    const messagesAsPrompt = () => ai.generate({ model: "fast", prompt: [{ role: "user", content: "Hello" }] });
+
+    expect(typeof both).toBe("function");
+    expect(typeof neither).toBe("function");
+    expect(typeof messagesAsPrompt).toBe("function");
+  });
+
   it("forwards abort signals", async () => {
     const controller = new AbortController();
     const abortReason = new Error("cancelled");

@@ -91,7 +91,7 @@ Generate text or structured output.
 const { data, metadata } = await ai.generate({
   model: "fast", // required, autocompletes to your model aliases
   prompt: "Hello", // provide exactly one of prompt or messages
-  system: "Be helpful", // optional
+  instructions: "Be helpful", // optional
   temperature: 0.7, // optional
   maxOutputTokens: 1000, // optional
   reasoning: "high", // optional, standardized by AI SDK v7
@@ -121,7 +121,7 @@ const { data } = await ai.generate({
 });
 ```
 
-Both input forms support `output` with the same inferred structured result type. Import message types and output helpers directly from `ai`. Conversation storage and model media capabilities remain the caller's responsibility; use `system` for system instructions.
+Both input forms support `output` with the same inferred structured result type. Import message types and output helpers directly from `ai`. Conversation storage and model media capabilities remain the caller's responsibility; use `instructions` for system instructions.
 
 `reasoning` uses AI SDK v7's provider-agnostic reasoning levels: `"provider-default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh"`. The AI SDK translates the selected level into provider-native settings. This library does not validate whether an individual model supports a given reasoning value. Use `providerOptions` for provider-specific settings outside the standardized levels.
 

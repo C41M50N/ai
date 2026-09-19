@@ -167,7 +167,7 @@ export function createAI<
       }
 
       throw new AIGenerationError({
-        modelAlias: String(params.model),
+        modelAlias: String(modelAlias),
         provider: String(modelConfig.provider),
         modelId: String(modelConfig.id),
         stage: "generation",
@@ -179,7 +179,7 @@ export function createAI<
     const responseTimeMs = endTime - startTime;
     const inputTokens = result.usage?.inputTokens ?? 0;
     const outputTokens = result.usage?.outputTokens ?? 0;
-    const costs = calculateCosts(params.model, inputTokens, outputTokens);
+    const costs = calculateCosts(modelAlias, inputTokens, outputTokens);
 
     // Log if requested
     if (logKey) {
@@ -187,7 +187,7 @@ export function createAI<
         costs.totalCostUsd !== undefined
           ? ` cost: ${costFormatter.format(costs.totalCostUsd)} (in: ${costFormatter.format(costs.inputCostUsd!)}, out: ${costFormatter.format(costs.outputCostUsd!)})`
           : "";
-      console.log(`[LLM][${logKey}] ${(responseTimeMs / 1000).toFixed(2)}s using ${String(params.model)}${costStr}`);
+      console.log(`[LLM][${logKey}] ${(responseTimeMs / 1000).toFixed(2)}s using ${String(modelAlias)}${costStr}`);
     }
 
     return {
