@@ -150,24 +150,16 @@ export function createAI<
   async function generate<TOutput extends Output.Output = Output.Output<string, string>>(
     params: GenerateParams<TModels, TOutput>,
   ): Promise<GenerateResponse<TOutput>> {
-    const modelConfig = config.models[params.model]!;
-    const model = await getModel(params.model);
+    const { model: modelAlias, logKey, ...options } = params;
+    const modelConfig = config.models[modelAlias]!;
+    const model = await getModel(modelAlias);
 
     const startTime = Date.now();
     let result;
     try {
       result = await generateText({
+        ...options,
         model,
-        prompt: params.prompt,
-        system: params.system,
-        temperature: params.temperature,
-        maxOutputTokens: params.maxOutputTokens,
-        reasoning: params.reasoning,
-        providerOptions: params.providerOptions,
-        output: params.output,
-        abortSignal: params.abortSignal,
-        maxRetries: params.maxRetries,
-        timeout: params.timeout,
       });
     } catch (cause) {
       if (params.abortSignal?.aborted && cause === params.abortSignal.reason) {
@@ -190,14 +182,12 @@ export function createAI<
     const costs = calculateCosts(params.model, inputTokens, outputTokens);
 
     // Log if requested
-    if (params.logKey) {
+    if (logKey) {
       const costStr =
         costs.totalCostUsd !== undefined
           ? ` cost: ${costFormatter.format(costs.totalCostUsd)} (in: ${costFormatter.format(costs.inputCostUsd!)}, out: ${costFormatter.format(costs.outputCostUsd!)})`
           : "";
-      console.log(
-        `[LLM][${params.logKey}] ${(responseTimeMs / 1000).toFixed(2)}s using ${String(params.model)}${costStr}`,
-      );
+      console.log(`[LLM][${logKey}] ${(responseTimeMs / 1000).toFixed(2)}s using ${String(params.model)}${costStr}`);
     }
 
     return {

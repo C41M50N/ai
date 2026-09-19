@@ -90,7 +90,7 @@ Generate text or structured output.
 ```typescript
 const { data, metadata } = await ai.generate({
   model: "fast", // required, autocompletes to your model aliases
-  prompt: "Hello", // required
+  prompt: "Hello", // provide exactly one of prompt or messages
   system: "Be helpful", // optional
   temperature: 0.7, // optional
   maxOutputTokens: 1000, // optional
@@ -103,6 +103,25 @@ const { data, metadata } = await ai.generate({
   logKey: "my-request", // optional, logs timing and cost
 });
 ```
+
+For multimodal input, combine text and file parts with a model that supports the supplied media. For example, given image bytes in `imageBytes`:
+
+```typescript
+const { data } = await ai.generate({
+  model: "smart", // configure this alias to use a model that supports images
+  messages: [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "Describe this image." },
+        { type: "file", data: imageBytes, mediaType: "image/png" },
+      ],
+    },
+  ],
+});
+```
+
+Both input forms support `output` with the same inferred structured result type. Import message types and output helpers directly from `ai`. Conversation storage and model media capabilities remain the caller's responsibility; use `system` for system instructions.
 
 `reasoning` uses AI SDK v7's provider-agnostic reasoning levels: `"provider-default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh"`. The AI SDK translates the selected level into provider-native settings. This library does not validate whether an individual model supports a given reasoning value. Use `providerOptions` for provider-specific settings outside the standardized levels.
 
