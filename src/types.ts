@@ -131,6 +131,9 @@ export const WRAPPER_ONLY_KEYS = ["logKey"] as const satisfies readonly (keyof W
 /** SDK keys the wrapper redefines with its own semantics or types. */
 type OverriddenSdkKeys = "model" | "prompt" | "messages" | "output" | "system";
 
+/** SDK-internal keys that are forwarded at runtime but hidden from the public type. */
+type HiddenSdkKeys = "_internal";
+
 /** Every key the wrapper declares itself, whether wrapper-only or an SDK override. */
 type WrapperOwnedKeys = keyof WrapperOnlyParams | Exclude<OverriddenSdkKeys, "system">;
 
@@ -148,7 +151,7 @@ type _NoSilentOverlap = Assert<
 >;
 
 /** AI SDK `generateText` options forwarded unchanged. */
-type PassthroughParams = Omit<GenerateTextParams, OverriddenSdkKeys>;
+type PassthroughParams = Omit<GenerateTextParams, OverriddenSdkKeys | HiddenSdkKeys>;
 
 /**
  * Reasoning effort level for a generate call. Controls how much reasoning the
