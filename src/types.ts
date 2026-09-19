@@ -105,6 +105,51 @@ export type AIConfig<
 
 type GenerateTextParams = Parameters<typeof generateText>[0];
 
+// ----------------------------------------------------------------------------
+// Wrapper / SDK boundary
+//
+// `generate` forwards its params to the AI SDK's `generateText` via spread, so
+// every SDK option works without this library having to enumerate it. The
+// types and checks below keep that passthrough safe:
+//
+// - Wrapper-only keys are stripped at runtime before the spread.
+// - SDK keys the wrapper redefines are omitted from the passthrough type and
+//   re-declared with the wrapper's semantics.
+// - Compile-time assertions fail the build if a wrapper-owned key ever
+//   collides with an SDK key that is not explicitly listed as overridden.
+// ----------------------------------------------------------------------------
+
+/** Params that exist only on this wrapper and must never reach the AI SDK. */
+export type WrapperOnlyParams = {
+  /** Optional key for logging timing and cost */
+  logKey?: string;
+};
+
+/** Runtime list of wrapper-only keys, stripped before forwarding to the SDK. */
+export const WRAPPER_ONLY_KEYS = ["logKey"] as const satisfies readonly (keyof WrapperOnlyParams)[];
+
+/** SDK keys the wrapper redefines with its own semantics or types. */
+type OverriddenSdkKeys = "model" | "prompt" | "messages" | "output" | "system";
+
+/** Every key the wrapper declares itself, whether wrapper-only or an SDK override. */
+type WrapperOwnedKeys = keyof WrapperOnlyParams | Exclude<OverriddenSdkKeys, "system">;
+
+type Assert<T extends true> = T;
+
+// Every key in WrapperOnlyParams must appear in WRAPPER_ONLY_KEYS, or it would leak to the SDK.
+type _WrapperOnlyKeysComplete = Assert<
+  Exclude<keyof WrapperOnlyParams, (typeof WRAPPER_ONLY_KEYS)[number]> extends never ? true : false
+>;
+
+// A wrapper-owned key that also exists on the SDK must be listed in OverriddenSdkKeys.
+// This fails when an SDK upgrade introduces a field with the same name as a wrapper field.
+type _NoSilentOverlap = Assert<
+  Exclude<Extract<WrapperOwnedKeys, keyof GenerateTextParams>, OverriddenSdkKeys> extends never ? true : false
+>;
+
+/** AI SDK `generateText` options forwarded unchanged. */
+type PassthroughParams = Omit<GenerateTextParams, OverriddenSdkKeys>;
+
 /**
  * Reasoning effort level for a generate call. Controls how much reasoning the
  * model performs before responding. Derived from AI SDK v7 to stay in sync.
@@ -129,34 +174,23 @@ type GenerateInput =
 type DefaultOutput = Output.Output<string, string>;
 
 /**
- * Parameters for the generate function.
- * @template TModels - Union of available model keys
- * @template TOutput - Output schema type
- */
-type SharedGenerateParams<TOutput extends Output.Output = DefaultOutput> = {
-  /** Optional system instructions */
-  instructions?: string;
-  /** Optional output schema for structured generation */
-  output?: TOutput;
-  /** Optional key for logging */
-  logKey?: string;
-} & Pick<
-  GenerateTextParams,
-  "temperature" | "maxOutputTokens" | "reasoning" | "providerOptions" | "abortSignal" | "maxRetries" | "timeout"
->;
-
-/**
- * Parameters for the generate function.
+ * Parameters for the generate function. Accepts every AI SDK `generateText`
+ * option except the ones this wrapper redefines: `model` is an alias, `prompt`
+ * is text-only, `messages` is the message form, `output` is typed by
+ * `TOutput`, and the deprecated `system` is replaced by `instructions`.
  * @template TModels - Record of available model configurations
  * @template TOutput - Output schema type
  */
 export type GenerateParams<
   TModels extends Record<string, { provider: string }>,
   TOutput extends Output.Output = DefaultOutput,
-> = GenerateInput &
-  SharedGenerateParams<TOutput> & {
+> = PassthroughParams &
+  GenerateInput &
+  WrapperOnlyParams & {
     /** The model alias to use */
     model: keyof TModels & string;
+    /** Optional output schema for structured generation */
+    output?: TOutput;
   };
 
 /**

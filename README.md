@@ -104,6 +104,8 @@ const { data, metadata } = await ai.generate({
 });
 ```
 
+Every other `generateText` option from the AI SDK (`tools`, `stopWhen`, `onFinish`, `headers`, and so on) is forwarded unchanged. The wrapper only redefines `model` (an alias instead of a model instance), `prompt` (text only), `messages`, and `output`. The SDK's deprecated `system` option is not exposed; use `instructions`.
+
 For multimodal input, combine text and file parts with a model that supports the supplied media. For example, given image bytes in `imageBytes`:
 
 ```typescript

@@ -1,6 +1,6 @@
 import { generateText, type LanguageModel, type Output } from "ai";
 
-import { AIGenerationError } from "./types.js";
+import { AIGenerationError, WRAPPER_ONLY_KEYS } from "./types.js";
 import type {
   GenerateMetadata,
   GenerateParams,
@@ -37,9 +37,22 @@ const costFormatter = new Intl.NumberFormat("en-US", {
 // createAI Factory
 // ############################################################################
 
-/**
-  * Creates a type-safe AI client with the given providers and models.
+/** `Omit` that distributes over unions instead of collapsing them. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
+/**
+ * Return a shallow copy of `obj` without the given keys.
+ */
+function omit<T extends object, K extends readonly (keyof T)[]>(obj: T, keys: K): DistributiveOmit<T, K[number]> {
+  const result: Record<PropertyKey, unknown> = { ...(obj as Record<PropertyKey, unknown>) };
+  for (const key of keys) {
+    delete result[key];
+  }
+  return result as DistributiveOmit<T, K[number]>;
+}
+
+/**
+ * Creates a type-safe AI client with the given providers and models.
  *
  * @example
  * ```typescript
@@ -150,7 +163,10 @@ export function createAI<
   async function generate<TOutput extends Output.Output = Output.Output<string, string>>(
     params: GenerateParams<TModels, TOutput>,
   ): Promise<GenerateResponse<TOutput>> {
-    const { model: modelAlias, logKey, ...options } = params;
+    const { model: modelAlias, logKey } = params;
+    // Strip wrapper-only keys so they never reach the SDK. Wrapper-owned SDK
+    // keys (currently `model`) are placed after the spread so they always win.
+    const options = omit(params, WRAPPER_ONLY_KEYS);
     const modelConfig = config.models[modelAlias]!;
     const model = await getModel(modelAlias);
 
