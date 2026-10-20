@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.1.0 - 2026-10-20
+
+### Added
+
+- Add `ai.agent(settings)`, a wrapper around the AI SDK's `ToolLoopAgent`. It accepts every `ToolLoopAgentSettings` option with `model` as a registry alias, plus `logKey`. The provider and model are resolved lazily on the first `generate` or `stream` call.
+- Agent `generate` and `stream` return the AI SDK's own result objects with a `metadata` field added. For `generate` it holds the cost data directly; for `stream` it is a `Promise` that resolves when the stream finishes. The returned object implements the AI SDK `Agent` interface, so it works with `createAgentUIStreamResponse` and `InferAgentUIMessage`.
+- Add a `steps` field to `GenerateMetadata` with the number of model calls in the run.
+- Add a `"stream"` stage to `AIGenerationError` for agent stream failures.
+- Export the `AIAgent`, `AgentSettings`, `AgentGenerateResult`, `AgentStreamResult`, and `AgentContext` types.
+- Add a compile-time assertion that fails the build if an AI SDK upgrade adds a `metadata` field to its result objects.
+
+### Fixed
+
+- `ai.generate` now reports token usage and cost summed across every step of a tool loop (`totalUsage`). Previously only the final step was counted when `tools` and `stopWhen` produced multiple steps.
+- Concurrent first calls to the same provider now share a single factory invocation, and a failed factory is retried on the next call instead of being cached.
+
+### Changed
+
+- The `logKey` log line includes the step count for multi-step runs.
+- Update the `ai` development dependency to 7.0.146 (the example uses the same version).
+
 ## 3.0.0 - 2026-09-19
 
 ### Breaking changes
