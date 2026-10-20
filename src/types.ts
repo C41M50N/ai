@@ -1,13 +1,26 @@
-import type { generateText, InferGenerateOutput, LanguageModel, ModelMessage, Output } from "ai";
+import type {
+  Agent,
+  AgentCallParameters,
+  AgentStreamParameters,
+  generateText,
+  GenerateTextResult,
+  InferGenerateOutput,
+  LanguageModel,
+  ModelMessage,
+  Output,
+  StreamTextResult,
+  ToolLoopAgentSettings,
+  ToolSet,
+} from "ai";
 
 // ############################################################################
 // Error Types
 // ############################################################################
 
-export type AIGenerationErrorStage = "provider_initialization" | "model_creation" | "generation";
+export type AIGenerationErrorStage = "provider_initialization" | "model_creation" | "generation" | "stream";
 
 /**
- * Error thrown when an ai.generate call fails.
+ * Error thrown when an `ai.generate` call or an agent `generate`/`stream` call fails.
  * Includes model registry context while preserving the original failure as cause.
  */
 export class AIGenerationError extends Error {
@@ -197,7 +210,8 @@ export type GenerateParams<
   };
 
 /**
- * Response metadata from a generate call.
+ * Response metadata from a generate call or an agent run. Token counts and
+ * costs are summed across every step of a tool loop.
  */
 export type GenerateMetadata = {
   /** Response time in milliseconds */
@@ -206,6 +220,8 @@ export type GenerateMetadata = {
   inputTokens: number;
   /** Number of output tokens generated */
   outputTokens: number;
+  /** Number of model calls (steps) in the run */
+  steps: number;
   /** Cost of input tokens in USD (undefined if costs not configured) */
   inputCostUsd?: number;
   /** Cost of output tokens in USD (undefined if costs not configured) */
@@ -224,3 +240,107 @@ export type GenerateResponse<TOutput extends Output.Output = DefaultOutput> = {
   /** Metadata about the generation */
   metadata: GenerateMetadata;
 };
+
+// ############################################################################
+// Agent Types
+// ############################################################################
+
+/** The runtime context constraint used by AI SDK agents (`Record<string, unknown>`). */
+export type AgentContext = NonNullable<ToolLoopAgentSettings["runtimeContext"]>;
+
+// `ai.agent` forwards its settings to the AI SDK's `ToolLoopAgent` via spread,
+// so the same wrapper/SDK boundary rules as `generate` apply here.
+
+/** `ToolLoopAgent` keys the wrapper redefines with its own semantics or types. */
+type AgentOverriddenSdkKeys = "model";
+
+/** Keys re-declared verbatim so TypeScript can infer the agent's type parameters from them. */
+type AgentInferenceKeys = "tools" | "output" | "callOptionsSchema" | "runtimeContext";
+
+type AgentWrapperOwnedKeys = keyof WrapperOnlyParams | AgentOverriddenSdkKeys;
+
+// A wrapper-owned key that also exists on ToolLoopAgentSettings must be listed in AgentOverriddenSdkKeys.
+type _NoSilentAgentOverlap = Assert<
+  Exclude<Extract<AgentWrapperOwnedKeys, keyof ToolLoopAgentSettings>, AgentOverriddenSdkKeys> extends never
+    ? true
+    : false
+>;
+
+// The wrapper attaches `metadata` to the SDK result objects. This fails the
+// build if an SDK upgrade ever adds a field with that name.
+type _NoResultMetadataCollision = Assert<
+  "metadata" extends
+    | keyof GenerateTextResult<ToolSet, AgentContext, Output.Output>
+    | keyof StreamTextResult<ToolSet, AgentContext, Output.Output>
+    ? false
+    : true
+>;
+
+/**
+ * Settings for `ai.agent`. Accepts every AI SDK `ToolLoopAgentSettings` option
+ * except `model`, which is a registry alias instead of a model instance.
+ * @template TModels - Record of available model configurations
+ * @template CALL_OPTIONS - Type of the per-call `options` (validated by `callOptionsSchema`)
+ * @template TOOLS - The agent's tool set
+ * @template RUNTIME_CONTEXT - Runtime context passed to tools
+ * @template OUTPUT - Output schema type
+ */
+export type AgentSettings<
+  TModels extends Record<string, { provider: string }>,
+  CALL_OPTIONS = never,
+  TOOLS extends ToolSet = {},
+  RUNTIME_CONTEXT extends AgentContext = AgentContext,
+  OUTPUT extends Output.Output = never,
+> = Omit<
+  ToolLoopAgentSettings<CALL_OPTIONS, TOOLS, RUNTIME_CONTEXT, OUTPUT>,
+  AgentOverriddenSdkKeys | AgentInferenceKeys | HiddenSdkKeys
+> &
+  Pick<ToolLoopAgentSettings<CALL_OPTIONS, TOOLS, RUNTIME_CONTEXT, OUTPUT>, AgentInferenceKeys> &
+  WrapperOnlyParams & {
+    /** The model alias to use */
+    model: keyof TModels & string;
+  };
+
+/** The AI SDK `generateText` result with cost metadata attached. */
+export type AgentGenerateResult<
+  TOOLS extends ToolSet = {},
+  RUNTIME_CONTEXT extends AgentContext = AgentContext,
+  OUTPUT extends Output.Output = never,
+> = GenerateTextResult<TOOLS, RUNTIME_CONTEXT, OUTPUT> & {
+  /** Metadata about the run, summed across all steps */
+  metadata: GenerateMetadata;
+};
+
+/** The AI SDK `streamText` result with a cost metadata promise attached. */
+export type AgentStreamResult<
+  TOOLS extends ToolSet = {},
+  RUNTIME_CONTEXT extends AgentContext = AgentContext,
+  OUTPUT extends Output.Output = never,
+> = StreamTextResult<TOOLS, RUNTIME_CONTEXT, OUTPUT> & {
+  /**
+   * Metadata about the run, summed across all steps. Resolves once the stream
+   * has finished, so it never settles if the stream is never consumed. Rejects
+   * with an `AIGenerationError` if the stream fails.
+   */
+  metadata: Promise<GenerateMetadata>;
+};
+
+/**
+ * An agent created by `ai.agent`. Implements the AI SDK's `Agent` interface,
+ * so it can be passed to helpers such as `createAgentUIStreamResponse`.
+ */
+export interface AIAgent<
+  CALL_OPTIONS = never,
+  TOOLS extends ToolSet = {},
+  RUNTIME_CONTEXT extends AgentContext = AgentContext,
+  OUTPUT extends Output.Output = never,
+> extends Agent<CALL_OPTIONS, TOOLS, RUNTIME_CONTEXT, OUTPUT> {
+  /** Runs the tool loop to completion and returns the SDK result with `metadata` attached. */
+  generate(
+    options: AgentCallParameters<CALL_OPTIONS, TOOLS, RUNTIME_CONTEXT>,
+  ): Promise<AgentGenerateResult<TOOLS, RUNTIME_CONTEXT, OUTPUT>>;
+  /** Streams the tool loop and returns the SDK result with a `metadata` promise attached. */
+  stream(
+    options: AgentStreamParameters<CALL_OPTIONS, TOOLS, RUNTIME_CONTEXT>,
+  ): Promise<AgentStreamResult<TOOLS, RUNTIME_CONTEXT, OUTPUT>>;
+}

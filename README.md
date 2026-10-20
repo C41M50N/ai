@@ -51,13 +51,14 @@ console.log(metadata.totalCostUsd); // undefined if costs not configured
 - **Type-safe model selection** — Full autocomplete on model aliases, provider references validated at compile time
 - **Lazy provider loading** — Providers can be sync or async, loaded on first use and cached
 - **Optional cost tracking** — Define `costs: { input, output }` per model (USD per 1M tokens), skip if you don't need it
+- **Agents** — `ai.agent()` wraps the AI SDK's `ToolLoopAgent` with the same aliases, lazy loading, and cost tracking
 - **Unified config** — Single `createAI()` call with providers and models in one object
 
 ## Why not use Vercel's AI SDK directly?
 
 Vercel's SDK is a great foundation, but this wrapper solves the gaps that show up once you use it across multiple models and providers:
 
-- **Model registry with autocomplete** — Define named model aliases once and get compile-time safety everywhere you call `ai.generate`.
+- **Model registry with autocomplete** — Define named model aliases once and get compile-time safety everywhere you call `ai.generate` or `ai.agent`.
 - **Lazy provider wiring** — Configure providers as sync or async factories so you only load SDKs when you actually need them.
 - **Built-in cost tracking** — Attach per-model USD rates and get cost metadata back without extra bookkeeping.
 - **One config surface** — Providers, models, and defaults live together instead of being stitched across call sites.
@@ -125,7 +126,62 @@ const { data } = await ai.generate({
 
 Both input forms support `output` with the same inferred structured result type. Import message types and output helpers directly from `ai`. Conversation storage and model media capabilities remain the caller's responsibility; use `instructions` for system instructions.
 
+Cost tracking is keyed to the `model` alias. If a `prepareStep` callback swaps in a different model instance for a step, the usage from that step is still priced at the alias's configured rates.
+
 `reasoning` uses AI SDK v7's provider-agnostic reasoning levels: `"provider-default" | "none" | "minimal" | "low" | "medium" | "high" | "xhigh"`. The AI SDK translates the selected level into provider-native settings. This library does not validate whether an individual model supports a given reasoning value. Use `providerOptions` for provider-specific settings outside the standardized levels.
+
+### `ai.agent(settings)`
+
+Create an agent backed by the AI SDK's [`ToolLoopAgent`](https://ai-sdk.dev/docs/agents/overview). It takes every `ToolLoopAgentSettings` option, with `model` as a registry alias instead of a model instance, plus the wrapper's `logKey`. Creating an agent is synchronous and does nothing until the first call; the provider and model are resolved lazily on the first `generate` or `stream`.
+
+```typescript
+import { tool, stepCountIs } from "ai";
+import { z } from "zod";
+
+const weather = tool({
+  description: "Get the weather for a city",
+  inputSchema: z.object({ city: z.string() }),
+  execute: async ({ city }) => ({ city, tempC: 21 }),
+});
+
+const assistant = ai.agent({
+  model: "smart", // required, autocompletes to your model aliases
+  instructions: "You are a helpful assistant.",
+  tools: { weather },
+  stopWhen: stepCountIs(5),
+  logKey: "assistant", // optional, logs timing, steps, and cost per run
+});
+
+const result = await assistant.generate({ prompt: "What's the weather in Paris?" });
+console.log(result.text);
+console.log(result.steps.length, result.metadata.totalCostUsd);
+```
+
+`generate` and `stream` return the AI SDK's own result objects, unchanged, with a `metadata` field added. Token counts and costs are summed across every step of the tool loop.
+
+- `generate` returns `GenerateTextResult & { metadata: GenerateMetadata }`.
+- `stream` returns `StreamTextResult & { metadata: Promise<GenerateMetadata> }`. The promise resolves once the stream has finished, so it never settles if the stream is never consumed. It rejects with an `AIGenerationError` if the stream fails.
+
+```typescript
+const stream = await assistant.stream({ prompt: "Summarize today's weather." });
+for await (const chunk of stream.textStream) process.stdout.write(chunk);
+const { totalCostUsd, steps } = await stream.metadata;
+```
+
+The returned object implements the AI SDK's `Agent` interface, so it works with `createAgentUIStreamResponse`, `InferAgentUIMessage`, and the other agent helpers:
+
+```typescript
+import { createAgentUIStreamResponse, type InferAgentUIMessage } from "ai";
+
+export type AssistantUIMessage = InferAgentUIMessage<typeof assistant>;
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+  return createAgentUIStreamResponse({ agent: assistant, uiMessages: messages });
+}
+```
+
+`callOptionsSchema` and `prepareCall` pass through unchanged, so per-call `options` are typed and validated by the SDK. Cost tracking is keyed to the `model` alias: if `prepareCall` or `prepareStep` swaps in a different model instance, the usage is still priced at the alias's configured rates.
 
 ### `ai.models`
 
@@ -155,8 +211,7 @@ try {
 }
 ```
 
-The `stage` is `"provider_initialization"`, `"model_creation"`, or `"generation"`. Caller-provided abort
-reasons are rethrown unchanged.
+Agent `generate` and `stream` calls throw the same error. The `stage` is `"provider_initialization"`, `"model_creation"`, `"generation"`, or `"stream"`. Caller-provided abort reasons are rethrown unchanged.
 
 **Returns:**
 
@@ -165,8 +220,9 @@ reasons are rethrown unchanged.
   data: string | T,  // text or structured output
   metadata: {
     responseTimeMs: number,
-    inputTokens: number,
+    inputTokens: number,     // summed across all steps
     outputTokens: number,
+    steps: number,           // number of model calls in the run
     inputCostUsd?: number,   // undefined if costs not configured
     outputCostUsd?: number,
     totalCostUsd?: number,

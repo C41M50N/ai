@@ -1,4 +1,4 @@
-import { Output } from "ai";
+import { Output, stepCountIs, tool } from "ai";
 import { z } from "zod";
 
 import { createAI } from "../src/index";
@@ -36,6 +36,26 @@ async function main(): Promise<void> {
 
   console.log("Structured output:", data);
   console.log("Usage and cost:", metadata);
+
+  const assistant = ai.agent({
+    model: "fast",
+    instructions: "You answer questions about the weather using the available tools.",
+    tools: {
+      weather: tool({
+        description: "Get the current weather for a city",
+        inputSchema: z.object({ city: z.string() }),
+        execute: async ({ city }) => ({ city, tempC: 21, conditions: "partly cloudy" }),
+      }),
+    },
+    stopWhen: stepCountIs(5),
+    logKey: "weather-agent",
+  });
+
+  const run = await assistant.generate({ prompt: "What's the weather like in Paris right now?" });
+
+  console.log("Agent answer:", run.text);
+  console.log("Agent steps:", run.steps.length);
+  console.log("Agent usage and cost:", run.metadata);
 }
 
 await main();

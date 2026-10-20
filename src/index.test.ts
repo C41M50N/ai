@@ -142,6 +142,64 @@ describe("createAI", () => {
     expect(result.data).toBe("Done");
   });
 
+  it("sums usage across steps of a tool loop", async () => {
+    const model = new MockLanguageModelV4({
+      doGenerate: async ({ prompt }) => {
+        if (prompt.some((m) => m.role === "tool")) {
+          return {
+            content: [{ type: "text", text: "Done" }],
+            finishReason: { unified: "stop", raw: "stop" },
+            usage: {
+              inputTokens: { total: 300, noCache: 300, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: 40, text: 40, reasoning: 0 },
+            },
+            warnings: [],
+          };
+        }
+        return {
+          content: [{ type: "tool-call", toolCallId: "call-1", toolName: "lookup", input: '{"query":"x"}' }],
+          finishReason: { unified: "tool-calls", raw: "tool_calls" },
+          usage: {
+            inputTokens: { total: 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
+            outputTokens: { total: 20, text: 20, reasoning: 0 },
+          },
+          warnings: [],
+        };
+      },
+    });
+    const ai = createAI({
+      providers: {
+        fake: () => () => model,
+      },
+      models: {
+        smart: { provider: "fake", id: "fake-smart", costs: { input: 2.5, output: 10 } },
+      },
+    });
+    const lookup = tool({
+      description: "Look something up",
+      inputSchema: jsonSchema<{ query: string }>({
+        type: "object",
+        properties: { query: { type: "string" } },
+        required: ["query"],
+      }),
+      execute: async ({ query }) => query,
+    });
+
+    const result = await ai.generate({
+      model: "smart",
+      prompt: "Hello",
+      tools: { lookup },
+      stopWhen: stepCountIs(3),
+    });
+
+    expect(model.doGenerateCalls).toHaveLength(2);
+    expect(result.data).toBe("Done");
+    expect(result.metadata).toMatchObject({ inputTokens: 400, outputTokens: 60, steps: 2 });
+    expect(result.metadata.inputCostUsd).toBeCloseTo(0.001, 10);
+    expect(result.metadata.outputCostUsd).toBeCloseTo(0.0006, 10);
+    expect(result.metadata.totalCostUsd).toBeCloseTo(0.0016, 10);
+  });
+
   it("rejects passing both prompt and messages at the type level", () => {
     const ai = makeClient();
     // @ts-expect-error prompt and messages are mutually exclusive
