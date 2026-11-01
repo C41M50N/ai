@@ -309,7 +309,7 @@ export function createAI<
         const startTime = Date.now();
         let result;
         try {
-          result = await sdkAgent.generate(options);
+          result = await sdkAgent.generate(options as Parameters<SdkAgent["generate"]>[0]);
         } catch (cause) {
           throw wrapError(modelAlias, "generation", cause, options.abortSignal);
         }
@@ -323,7 +323,7 @@ export function createAI<
         const startTime = Date.now();
         let result;
         try {
-          result = await sdkAgent.stream(options);
+          result = await sdkAgent.stream(options as Parameters<SdkAgent["stream"]>[0]);
         } catch (cause) {
           throw wrapError(modelAlias, "stream", cause, options.abortSignal);
         }

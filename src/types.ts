@@ -9,6 +9,7 @@ import type {
   ModelMessage,
   Output,
   StreamTextResult,
+  ToolLoopAgent,
   ToolLoopAgentSettings,
   ToolSet,
 } from "ai";
@@ -274,6 +275,22 @@ type _NoResultMetadataCollision = Assert<
     | keyof StreamTextResult<ToolSet, AgentContext, Output.Output>
     ? false
     : true
+>;
+
+// `AIAgent` casts its options when calling the SDK agent, because the SDK's parameter
+// types can't be checked against unresolved generics. This checks them on concrete
+// types instead, and fails the build if an SDK upgrade requires a param `AIAgent`
+// doesn't accept.
+type _AgentCallParamsForwardable = Assert<
+  AgentCallParameters<never, ToolSet, AgentContext> extends Parameters<
+    ToolLoopAgent<never, ToolSet, AgentContext>["generate"]
+  >[0]
+    ? AgentStreamParameters<never, ToolSet, AgentContext> extends Parameters<
+        ToolLoopAgent<never, ToolSet, AgentContext>["stream"]
+      >[0]
+      ? true
+      : false
+    : false
 >;
 
 /**
