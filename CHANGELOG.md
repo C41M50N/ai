@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2.0 - 2026-11-01
+
+No user-facing changes.
+
 ## 3.1.0 - 2026-10-20
 
 ### Added
