@@ -160,6 +160,7 @@ jobs:
           base: ${{ github.event.repository.default_branch }}
           branch: automation/dependency-maintenance
           delete-branch: true
+          reviewers: C41M50N
           add-paths: |
             package.json
             bun.lock
