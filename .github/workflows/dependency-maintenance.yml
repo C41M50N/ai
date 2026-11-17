@@ -151,7 +151,8 @@ jobs:
             exit 1
           fi
 
-      # Fail fast here so a broken update never opens a PR.
+      # Fail fast here so a broken update never opens a PR. CI runs these again
+      # on the PR branch so the checks show on the PR.
       - name: Lint
         run: bun run lint
 
@@ -192,6 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: write # dispatch CI on the dependency branch
       contents: write
       pull-requests: write
 
@@ -214,6 +216,7 @@ jobs:
         run: git apply "$RUNNER_TEMP/dependencies.patch"
 
       - name: Create or update the dependency pull request
+        id: pr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           base: ${{ github.event.repository.default_branch }}
@@ -242,3 +245,11 @@ jobs:
             Unresolved advisories are reported for review and do not fail this workflow.
 
             [View the workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      # Pushes made with GITHUB_TOKEN don't trigger workflows, so CI wouldn't
+      # report on the PR. workflow_dispatch is the documented exception.
+      - name: Run CI on the dependency branch
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        run: gh workflow run ci.yml --ref automation/dependency-maintenance
+        env:
+          GH_TOKEN: ${{ github.token }}
