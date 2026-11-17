@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.2.1 - Unreleased
+
+### Changed
+
+- Allow TypeScript 6 and 7 as peer dependencies. The published JavaScript and type declarations are unchanged.
+- Build and typecheck with TypeScript 7.
+
 ## 3.2.0 - 2026-11-01
 
 No user-facing changes.
