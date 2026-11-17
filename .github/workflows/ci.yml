@@ -4,6 +4,8 @@ on:
   push:
     branches: ["**"]
   merge_group:
+  # Also dispatched by dependency maintenance, whose GITHUB_TOKEN pushes don't trigger `push`.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
